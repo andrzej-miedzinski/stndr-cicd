@@ -1,41 +1,184 @@
-name: CI
+name: CI/CD Pipeline
 
 on:
   push:
-    branches:
-      - master
+    branches: [ main ]
   pull_request:
-
-permissions:
-  actions: read
-  contents: read
+    branches: [ main ]
 
 jobs:
-  main:
+  install:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-
-      # This enables task distribution via Nx Cloud
-      # Run this command as early as possible, before dependencies are installed
-      # Learn more at https://nx.dev/ci/reference/nx-cloud-cli#npx-nxcloud-startcirun
-      # Uncomment this line to enable task distribution
-      # - run: npx nx-cloud start-ci-run --distribute-on="3 linux-medium-js" --stop-agents-after="e2e-ci"
-
-      # Cache node_modules
-      - uses: actions/setup-node@v4
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: '20'
           cache: 'npm'
+      - name: Cache node modules
+        uses: actions/cache@v4
+        id: cache-node-modules
+        with:
+          path: node_modules
+          key: ${{ runner.os }}-node-${{ hashFiles('**/package-lock.json') }}
+          restore-keys: |
+            ${{ runner.os }}-node-
+      - name: Install dependencies
+        if: steps.cache-node-modules.outputs.cache-hit != 'true'
+        run: npm ci
 
-      - run: npm ci --legacy-peer-deps
-      - run: npx playwright install --with-deps
-      - uses: nrwl/nx-set-shas@v4
+  lint:
+    needs: install
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Restore node modules
+        uses: actions/cache@v4
+        with:
+          path: node_modules
+          key: ${{ runner.os }}-node-${{ hashFiles('**/package-lock.json') }}
+      - name: Lint affected projects
+        run: npx nx affected --target=lint --parallel=3
+      
+  test:
+    needs: lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Restore node modules
+        uses: actions/cache@v4
+        with:
+          path: node_modules
+          key: ${{ runner.os }}-node-${{ hashFiles('**/package-lock.json') }}
+      - name: Run unit tests with Allure
+        run: npx nx affected --target=test --parallel=3 --configuration=ci
+      - name: Run integration tests
+        run: npx nx affected --target=integration-test --parallel=3
+      - name: Generate Allure report
+        run: |
+          npx allure generate allure-results --clean -o allure-report
+      - name: Upload Allure report
+        uses: actions/upload-artifact@v4
+        with:
+          name: allure-report
+          path: allure-report
 
-      # Prepend any command with "nx-cloud record --" to record its logs to Nx Cloud
-      # - run: npx nx-cloud record -- echo Hello World
-      # Nx Affected runs only tasks affected by the changes in this PR/commit. Learn more: https://nx.dev/ci/features/affected
-      # When you enable task distribution, run the e2e-ci task instead of e2e
-      - run: npx nx affected -t lint test build e2e
+  build:
+    needs: test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Restore node modules
+        uses: actions/cache@v4
+        with:
+          path: node_modules
+          key: ${{ runner.os }}-node-${{ hashFiles('**/package-lock.json') }}
+      - name: Build affected projects
+        run: npx nx affected --target=build --parallel=3
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: dist
+          path: dist
+
+  e2e:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Restore node modules
+        uses: actions/cache@v4
+        with:
+          path: node_modules
+          key: ${{ runner.os }}-node-${{ hashFiles('**/package-lock.json') }}
+      - name: Download build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: dist
+          path: dist
+      - name: Run E2E tests
+        run: npx nx affected --target=e2e --parallel=1
+      - name: Generate Allure E2E report
+        run: |
+          npx allure generate cypress/allure-results --clean -o allure-e2e-report
+      - name: Upload Allure E2E report
+        uses: actions/upload-artifact@v4
+        with:
+          name: allure-e2e-report
+          path: allure-e2e-report
+
+  release:
+    needs: [build, e2e]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          registry-url: 'https://registry.npmjs.org'
+      - name: Restore node modules
+        uses: actions/cache@v4
+        with:
+          path: node_modules
+          key: ${{ runner.os }}-node-${{ hashFiles('**/package-lock.json') }}
+      - name: Download build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: dist
+          path: dist
+      - name: Release libraries
+        run: npm run release-libs
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  deploy:
+    needs: release
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Download build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: dist
+          path: dist
+      - name: Deploy Apps (Placeholder)
+        run: |
+          echo "Deploying apps to production environment"
+          # Tu można dodać faktyczny deployment, np. do Azure, AWS, etc.
