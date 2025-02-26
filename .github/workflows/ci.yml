@@ -95,6 +95,8 @@ jobs:
   build:
     needs: test
     runs-on: ubuntu-latest
+    outputs:
+      buildSucceeded: ${{ env.buildSucceeded }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -168,17 +170,20 @@ jobs:
           key: ${{ runner.os }}-node-${{ hashFiles('package-lock.json', 'nx.json', 'workspace.json') }}
 
       - name: Download all artifacts
+        if: needs.build.outputs.buildSucceeded == 'true'
         uses: actions/download-artifact@v4
         with:
           name: all-project-artifacts
           path: downloaded-artifacts
 
       - name: Debug downloaded artifacts
+        if: needs.build.outputs.buildSucceeded == 'true'
         run: |
           echo "Contents of downloaded-artifacts:"
           ls -R downloaded-artifacts || echo "No files found in downloaded-artifacts."
 
       - name: Check if artifacts exist
+        if: needs.build.outputs.buildSucceeded == 'true'
         id: check-artifacts
         run: |
           if ls downloaded-artifacts/*.tar.gz 1> /dev/null 2>&1; then
@@ -198,12 +203,15 @@ jobs:
           done
 
       - name: Run E2E tests for affected projects
+        if: env.artifactsExist == 'true'
         run: npx nx affected --target=e2e --parallel=3 --base=main --head=HEAD
 
       - name: Generate Allure E2E report
+        if: env.artifactsExist == 'true'
         run: npx allure generate cypress/allure-results --clean -o allure-e2e-report || true
 
       - name: Upload Allure E2E report
+        if: env.artifactsExist == 'true'
         uses: actions/upload-artifact@v4
         with:
           name: allure-e2e-report
@@ -232,17 +240,20 @@ jobs:
           key: ${{ runner.os }}-node-${{ hashFiles('package-lock.json', 'nx.json', 'workspace.json') }}
 
       - name: Download all artifacts
+        if: needs.build.outputs.buildSucceeded == 'true'
         uses: actions/download-artifact@v4
         with:
           name: all-project-artifacts
           path: downloaded-artifacts
 
       - name: Debug downloaded artifacts
+        if: needs.build.outputs.buildSucceeded == 'true'
         run: |
           echo "Contents of downloaded-artifacts:"
           ls -R downloaded-artifacts || echo "No files found in downloaded-artifacts."
 
       - name: Check if artifacts exist
+        if: needs.build.outputs.buildSucceeded == 'true'
         id: check-artifacts
         run: |
           if ls downloaded-artifacts/*.tar.gz 1> /dev/null 2>&1; then
@@ -262,6 +273,7 @@ jobs:
           done
 
       - name: Release libraries
+        if: env.artifactsExist == 'true'
         run: npm run release-libs
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
@@ -281,17 +293,20 @@ jobs:
           node-version: '20'
 
       - name: Download all artifacts
+        if: needs.build.outputs.buildSucceeded == 'true'
         uses: actions/download-artifact@v4
         with:
           name: all-project-artifacts
           path: downloaded-artifacts
 
       - name: Debug downloaded artifacts
+        if: needs.build.outputs.buildSucceeded == 'true'
         run: |
           echo "Contents of downloaded-artifacts:"
           ls -R downloaded-artifacts || echo "No files found in downloaded-artifacts."
 
       - name: Check if artifacts exist
+        if: needs.build.outputs.buildSucceeded == 'true'
         id: check-artifacts
         run: |
           if ls downloaded-artifacts/*.tar.gz 1> /dev/null 2>&1; then
@@ -318,6 +333,7 @@ jobs:
           aws-region: us-east-1
 
       - name: Deploy all projects to AWS S3
+        if: env.artifactsExist == 'true'
         run: |
           for projectPath in dist/apps/*; do
             projectName=$(basename "$projectPath")
@@ -326,6 +342,7 @@ jobs:
           done
 
       - name: Verify deployment
+        if: env.artifactsExist == 'true'
         run: |
           for projectPath in dist/apps/*; do
             projectName=$(basename "$projectPath")
