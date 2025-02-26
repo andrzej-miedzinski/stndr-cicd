@@ -1,9 +1,9 @@
 {
-  "name": "angular-monorepo",
+  "name": "inventory",
   "$schema": "../../node_modules/nx/schemas/project-schema.json",
   "projectType": "application",
   "prefix": "app",
-  "sourceRoot": "apps/angular-monorepo/src",
+  "sourceRoot": "apps/inventory/src",
   "tags": [],
   "targets": {
     "build": {
@@ -12,26 +12,26 @@
         "{options.outputPath}"
       ],
       "options": {
-        "outputPath": "dist/apps/angular-monorepo",
-        "index": "apps/angular-monorepo/src/index.html",
+        "outputPath": "dist/apps/inventory",
+        "index": "apps/inventory/src/index.html",
         "polyfills": [
           "zone.js"
         ],
-        "tsConfig": "apps/angular-monorepo/tsconfig.app.json",
+        "tsConfig": "apps/inventory/tsconfig.app.json",
         "assets": [
           {
             "glob": "**/*",
-            "input": "apps/angular-monorepo/public",
+            "input": "apps/inventory/public",
             "output": "."
           }
         ],
         "styles": [
-          "apps/angular-monorepo/src/styles.css"
+          "apps/inventory/src/styles.css"
         ],
         "scripts": [],
-        "main": "apps/angular-monorepo/src/main.ts",
+        "main": "apps/inventory/src/main.ts",
         "customWebpackConfig": {
-          "path": "apps/angular-monorepo/webpack.config.js"
+          "path": "apps/inventory/webpack.config.js"
         },
         "commonChunk": false
       },
@@ -51,7 +51,7 @@
           ],
           "outputHashing": "all",
           "customWebpackConfig": {
-            "path": "apps/angular-monorepo/webpack.prod.config.js"
+            "path": "apps/inventory/webpack.prod.config.js"
           }
         },
         "development": {
@@ -66,23 +66,23 @@
       "executor": "@nx/angular:dev-server",
       "configurations": {
         "production": {
-          "buildTarget": "angular-monorepo:build:production"
+          "buildTarget": "inventory:build:production"
         },
         "development": {
-          "buildTarget": "angular-monorepo:build:development"
+          "buildTarget": "inventory:build:development"
         }
       },
       "defaultConfiguration": "development",
       "options": {
-        "port": 4201,
-        "publicHost": "http://localhost:4201"
+        "port": 4202,
+        "publicHost": "http://localhost:4202"
       }
     },
     "extract-i18n": {
       "executor": "ngx-build-plus:extract-i18n",
       "options": {
-        "buildTarget": "angular-monorepo:build",
-        "extraWebpackConfig": "apps/angular-monorepo/webpack.config.js"
+        "buildTarget": "inventory:build",
+        "extraWebpackConfig": "apps/inventory/webpack.config.js"
       }
     },
     "lint": {
@@ -94,15 +94,15 @@
         "{workspaceRoot}/coverage/{projectRoot}"
       ],
       "options": {
-        "jestConfig": "apps/angular-monorepo/jest.config.ts"
+        "jestConfig": "apps/inventory/jest.config.ts"
       }
     },
     "serve-static": {
       "executor": "@nx/web:file-server",
       "options": {
-        "buildTarget": "angular-monorepo:build",
+        "buildTarget": "inventory:build",
         "port": 4200,
-        "staticFilePath": "dist/apps/angular-monorepo/browser",
+        "staticFilePath": "dist/apps/inventory/browser",
         "spa": true
       }
     }
