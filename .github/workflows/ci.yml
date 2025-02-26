@@ -113,31 +113,39 @@ jobs:
           key: ${{ runner.os }}-node-${{ hashFiles('package-lock.json', 'nx.json', 'workspace.json') }}
 
       - name: Build affected projects
-        run: npx nx affected --target=build --parallel=3 --base=main --head=HEAD --configuration=production
+        run: npx nx affected --target=build --parallel=3 --base=main --head=HEAD --configuration=production || exit 1
+
+      - name: Check if build succeeded
+        id: check-build
+        run: |
+          if [ -d "dist/apps" ]; then
+            echo "buildSucceeded=true" >> $GITHUB_ENV
+          else
+            echo "buildSucceeded=false" >> $GITHUB_ENV
+          fi
 
       - name: List affected projects
+        if: env.buildSucceeded == 'true'
         id: list-projects
         run: |
-          echo "Affected projects:"
-          ls -d dist/apps/* || echo "No affected projects found."
           echo "projectPaths=$(ls -d dist/apps/* 2>/dev/null)" >> $GITHUB_ENV
 
       - name: Archive and upload artifacts for each project
-        if: success() && contains(github.event_name, 'push')
+        if: env.buildSucceeded == 'true' && contains(github.event_name, 'push')
         run: |
+          mkdir -p archived-artifacts
           for projectPath in ${{ env.projectPaths }}; do
             projectName=$(basename "$projectPath")
-            echo "Archiving and uploading artifacts for project: $projectName"
-            tar -czf "${projectName}.tar.gz" -C "$projectPath" .
-            echo "::set-output name=artifactName::${projectName}-dist"
-            echo "::set-output name=artifactPath::${projectName}.tar.gz"
+            echo "Archiving artifacts for project: $projectName"
+            tar -czf "archived-artifacts/${projectName}.tar.gz" -C "$projectPath" .
           done
 
-      - name: Upload artifacts
+      - name: Upload all artifacts
+        if: env.buildSucceeded == 'true' && contains(github.event_name, 'push')
         uses: actions/upload-artifact@v4
         with:
-          name: ${{ steps.list-projects.outputs.artifactName }}
-          path: ${{ steps.list-projects.outputs.artifactPath }}
+          name: all-project-artifacts
+          path: archived-artifacts/
 
   e2e:
     needs: build
@@ -167,7 +175,7 @@ jobs:
       - name: Extract artifacts
         run: |
           mkdir -p dist/apps
-          for artifact in downloaded-artifacts/*; do
+          for artifact in downloaded-artifacts/*.tar.gz; do
             projectName=$(basename "$artifact" .tar.gz)
             echo "Extracting artifact for project: $projectName"
             tar -xzf "$artifact" -C "dist/apps/$projectName"
@@ -215,7 +223,7 @@ jobs:
       - name: Extract artifacts
         run: |
           mkdir -p dist/apps
-          for artifact in downloaded-artifacts/*; do
+          for artifact in downloaded-artifacts/*.tar.gz; do
             projectName=$(basename "$artifact" .tar.gz)
             echo "Extracting artifact for project: $projectName"
             tar -xzf "$artifact" -C "dist/apps/$projectName"
@@ -248,7 +256,7 @@ jobs:
       - name: Extract artifacts
         run: |
           mkdir -p dist/apps
-          for artifact in downloaded-artifacts/*; do
+          for artifact in downloaded-artifacts/*.tar.gz; do
             projectName=$(basename "$artifact" .tar.gz)
             echo "Extracting artifact for project: $projectName"
             tar -xzf "$artifact" -C "dist/apps/$projectName"
