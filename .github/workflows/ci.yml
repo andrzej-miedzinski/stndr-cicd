@@ -80,6 +80,7 @@ jobs:
           path: node_modules
           key: ${{ runner.os }}-node-${{ hashFiles('package-lock.json') }}
       - run: npx nx affected --target=build --parallel=3 --base=main --head=HEAD
+      - run: ls -R dist/ # Debugging step
       - uses: actions/upload-artifact@v4
         with:
           name: dist
@@ -155,3 +156,4 @@ jobs:
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: us-east-1
       - run: aws s3 sync dist/ s3://your-bucket-name/
+      - run: aws s3 ls s3://your-bucket-name/ --recursive
