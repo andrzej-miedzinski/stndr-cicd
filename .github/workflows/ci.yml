@@ -54,9 +54,6 @@ jobs:
           path: node_modules
           key: ${{ runner.os }}-node-${{ hashFiles('package-lock.json') }}
 
-      - name: Debug workspace structure
-        run: ls -R
-
       - name: Lint affected projects
         run: npx nx affected --target=lint --parallel=3 --base=main --head=HEAD
 
@@ -79,9 +76,6 @@ jobs:
         with:
           path: node_modules
           key: ${{ runner.os }}-node-${{ hashFiles('package-lock.json') }}
-
-      - name: Debug workspace structure
-        run: ls -R
 
       - name: Run unit tests
         run: npx nx affected --target=test --parallel=3 --configuration=ci --base=main --head=HEAD
@@ -118,9 +112,6 @@ jobs:
           path: node_modules
           key: ${{ runner.os }}-node-${{ hashFiles('package-lock.json') }}
 
-      - name: Debug workspace structure
-        run: ls -R
-
       - name: Build affected projects
         run: npx nx affected --target=build --parallel=3 --base=main --head=HEAD
 
@@ -128,14 +119,13 @@ jobs:
         if: always()
         run: |
           if [ -d "dist" ]; then
-            echo "Build output found:"
             ls -R dist/
           else
             echo "No dist folder found."
           fi
 
       - name: Upload build artifacts
-        if: success() && contains(github.event_name, 'push') && exists('dist')
+        if: success() && contains(github.event_name, 'push')
         uses: actions/upload-artifact@v4
         with:
           name: dist
@@ -166,16 +156,6 @@ jobs:
         with:
           name: dist
           path: dist
-
-      - name: Debug downloaded artifacts
-        if: always()
-        run: |
-          if [ -d "dist" ]; then
-            echo "Downloaded artifacts:"
-            ls -R dist/
-          else
-            echo "No dist folder found in downloaded artifacts."
-          fi
 
       - name: Run E2E tests
         run: npx nx affected --target=e2e --parallel=3 --base=main --head=HEAD
@@ -217,16 +197,6 @@ jobs:
           name: dist
           path: dist
 
-      - name: Debug downloaded artifacts
-        if: always()
-        run: |
-          if [ -d "dist" ]; then
-            echo "Downloaded artifacts:"
-            ls -R dist/
-          else
-            echo "No dist folder found in downloaded artifacts."
-          fi
-
       - name: Release libraries
         run: npm run release-libs
         env:
@@ -251,16 +221,6 @@ jobs:
         with:
           name: dist
           path: dist
-
-      - name: Debug downloaded artifacts
-        if: always()
-        run: |
-          if [ -d "dist" ]; then
-            echo "Downloaded artifacts:"
-            ls -R dist/
-          else
-            echo "No dist folder found in downloaded artifacts."
-          fi
 
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
