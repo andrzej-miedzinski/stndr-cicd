@@ -170,9 +170,25 @@ jobs:
       - name: Download all artifacts
         uses: actions/download-artifact@v4
         with:
+          name: all-project-artifacts
           path: downloaded-artifacts
 
+      - name: Debug downloaded artifacts
+        run: |
+          echo "Contents of downloaded-artifacts:"
+          ls -R downloaded-artifacts || echo "No files found in downloaded-artifacts."
+
+      - name: Check if artifacts exist
+        id: check-artifacts
+        run: |
+          if ls downloaded-artifacts/*.tar.gz 1> /dev/null 2>&1; then
+            echo "artifactsExist=true" >> $GITHUB_ENV
+          else
+            echo "artifactsExist=false" >> $GITHUB_ENV
+          fi
+
       - name: Extract artifacts
+        if: env.artifactsExist == 'true'
         run: |
           mkdir -p dist/apps
           for artifact in downloaded-artifacts/*.tar.gz; do
@@ -218,9 +234,25 @@ jobs:
       - name: Download all artifacts
         uses: actions/download-artifact@v4
         with:
+          name: all-project-artifacts
           path: downloaded-artifacts
 
+      - name: Debug downloaded artifacts
+        run: |
+          echo "Contents of downloaded-artifacts:"
+          ls -R downloaded-artifacts || echo "No files found in downloaded-artifacts."
+
+      - name: Check if artifacts exist
+        id: check-artifacts
+        run: |
+          if ls downloaded-artifacts/*.tar.gz 1> /dev/null 2>&1; then
+            echo "artifactsExist=true" >> $GITHUB_ENV
+          else
+            echo "artifactsExist=false" >> $GITHUB_ENV
+          fi
+
       - name: Extract artifacts
+        if: env.artifactsExist == 'true'
         run: |
           mkdir -p dist/apps
           for artifact in downloaded-artifacts/*.tar.gz; do
@@ -251,9 +283,25 @@ jobs:
       - name: Download all artifacts
         uses: actions/download-artifact@v4
         with:
+          name: all-project-artifacts
           path: downloaded-artifacts
 
+      - name: Debug downloaded artifacts
+        run: |
+          echo "Contents of downloaded-artifacts:"
+          ls -R downloaded-artifacts || echo "No files found in downloaded-artifacts."
+
+      - name: Check if artifacts exist
+        id: check-artifacts
+        run: |
+          if ls downloaded-artifacts/*.tar.gz 1> /dev/null 2>&1; then
+            echo "artifactsExist=true" >> $GITHUB_ENV
+          else
+            echo "artifactsExist=false" >> $GITHUB_ENV
+          fi
+
       - name: Extract artifacts
+        if: env.artifactsExist == 'true'
         run: |
           mkdir -p dist/apps
           for artifact in downloaded-artifacts/*.tar.gz; do
