@@ -120,34 +120,52 @@ jobs:
       - name: Check if build succeeded
         id: check-build
         run: |
-          if [ -d "dist/apps" ]; then
+          if [ -d "dist/apps" ] || [ -d "dist/libs" ]; then
             echo "buildSucceeded=true" >> $GITHUB_ENV
           else
             echo "buildSucceeded=false" >> $GITHUB_ENV
           fi
 
-      - name: List affected projects
+      - name: List affected apps and libraries
         if: env.buildSucceeded == 'true'
         id: list-projects
         run: |
-          echo "projectPaths=$(ls -d dist/apps/* 2>/dev/null)" >> $GITHUB_ENV
+          echo "appPaths=$(ls -d dist/apps/* 2>/dev/null)" >> $GITHUB_ENV
+          echo "libPaths=$(ls -d dist/libs/* 2>/dev/null)" >> $GITHUB_ENV
 
-      - name: Archive and upload artifacts for each project
+      - name: Archive and upload app artifacts
         if: env.buildSucceeded == 'true' && contains(github.event_name, 'push')
         run: |
-          mkdir -p archived-artifacts
-          for projectPath in ${{ env.projectPaths }}; do
-            projectName=$(basename "$projectPath")
-            echo "Archiving artifacts for project: $projectName"
-            tar -czf "archived-artifacts/${projectName}.tar.gz" -C "$projectPath" .
+          mkdir -p archived-apps
+          for appPath in ${{ env.appPaths }}; do
+            appName=$(basename "$appPath")
+            echo "Archiving app artifacts for: $appName"
+            tar -czf "archived-apps/${appName}.tar.gz" -C "$appPath" .
           done
 
-      - name: Upload all artifacts
+      - name: Archive and upload library artifacts
+        if: env.buildSucceeded == 'true' && contains(github.event_name, 'push')
+        run: |
+          mkdir -p archived-libs
+          for libPath in ${{ env.libPaths }}; do
+            libName=$(basename "$libPath")
+            echo "Archiving library artifacts for: $libName"
+            tar -czf "archived-libs/${libName}.tar.gz" -C "$libPath" .
+          done
+
+      - name: Upload all app artifacts
         if: env.buildSucceeded == 'true' && contains(github.event_name, 'push')
         uses: actions/upload-artifact@v4
         with:
-          name: all-project-artifacts
-          path: archived-artifacts/
+          name: all-app-artifacts
+          path: archived-apps/
+
+      - name: Upload all library artifacts
+        if: env.buildSucceeded == 'true' && contains(github.event_name, 'push')
+        uses: actions/upload-artifact@v4
+        with:
+          name: all-library-artifacts
+          path: archived-libs/
 
   e2e:
     needs: build
@@ -169,49 +187,50 @@ jobs:
           path: node_modules
           key: ${{ runner.os }}-node-${{ hashFiles('package-lock.json', 'nx.json', 'workspace.json') }}
 
-      - name: Download all artifacts
+      - name: Download all app artifacts
         if: needs.build.outputs.buildSucceeded == 'true'
         uses: actions/download-artifact@v4
         with:
-          name: all-project-artifacts
-          path: downloaded-artifacts
+          name: all-app-artifacts
+          path: downloaded-apps
 
-      - name: Debug downloaded artifacts
+      - name: Download all library artifacts
         if: needs.build.outputs.buildSucceeded == 'true'
-        run: |
-          echo "Contents of downloaded-artifacts:"
-          ls -R downloaded-artifacts || echo "No files found in downloaded-artifacts."
+        uses: actions/download-artifact@v4
+        with:
+          name: all-library-artifacts
+          path: downloaded-libs
 
-      - name: Check if artifacts exist
+      - name: Extract app artifacts
         if: needs.build.outputs.buildSucceeded == 'true'
-        id: check-artifacts
-        run: |
-          if ls downloaded-artifacts/*.tar.gz 1> /dev/null 2>&1; then
-            echo "artifactsExist=true" >> $GITHUB_ENV
-          else
-            echo "artifactsExist=false" >> $GITHUB_ENV
-          fi
-
-      - name: Extract artifacts
-        if: env.artifactsExist == 'true'
         run: |
           mkdir -p dist/apps
-          for artifact in downloaded-artifacts/*.tar.gz; do
-            projectName=$(basename "$artifact" .tar.gz)
-            echo "Extracting artifact for project: $projectName"
-            tar -xzf "$artifact" -C "dist/apps/$projectName"
+          for artifact in downloaded-apps/*.tar.gz; do
+            appName=$(basename "$artifact" .tar.gz)
+            echo "Extracting app artifact for: $appName"
+            tar -xzf "$artifact" -C "dist/apps/$appName"
+          done
+
+      - name: Extract library artifacts
+        if: needs.build.outputs.buildSucceeded == 'true'
+        run: |
+          mkdir -p dist/libs
+          for artifact in downloaded-libs/*.tar.gz; do
+            libName=$(basename "$artifact" .tar.gz)
+            echo "Extracting library artifact for: $libName"
+            tar -xzf "$artifact" -C "dist/libs/$libName"
           done
 
       - name: Run E2E tests for affected projects
-        if: env.artifactsExist == 'true'
+        if: needs.build.outputs.buildSucceeded == 'true'
         run: npx nx affected --target=e2e --parallel=3 --base=main --head=HEAD
 
       - name: Generate Allure E2E report
-        if: env.artifactsExist == 'true'
+        if: needs.build.outputs.buildSucceeded == 'true'
         run: npx allure generate cypress/allure-results --clean -o allure-e2e-report || true
 
       - name: Upload Allure E2E report
-        if: env.artifactsExist == 'true'
+        if: needs.build.outputs.buildSucceeded == 'true'
         uses: actions/upload-artifact@v4
         with:
           name: allure-e2e-report
@@ -239,41 +258,42 @@ jobs:
           path: node_modules
           key: ${{ runner.os }}-node-${{ hashFiles('package-lock.json', 'nx.json', 'workspace.json') }}
 
-      - name: Download all artifacts
+      - name: Download all app artifacts
         if: needs.build.outputs.buildSucceeded == 'true'
         uses: actions/download-artifact@v4
         with:
-          name: all-project-artifacts
-          path: downloaded-artifacts
+          name: all-app-artifacts
+          path: downloaded-apps
 
-      - name: Debug downloaded artifacts
+      - name: Download all library artifacts
         if: needs.build.outputs.buildSucceeded == 'true'
-        run: |
-          echo "Contents of downloaded-artifacts:"
-          ls -R downloaded-artifacts || echo "No files found in downloaded-artifacts."
+        uses: actions/download-artifact@v4
+        with:
+          name: all-library-artifacts
+          path: downloaded-libs
 
-      - name: Check if artifacts exist
+      - name: Extract app artifacts
         if: needs.build.outputs.buildSucceeded == 'true'
-        id: check-artifacts
-        run: |
-          if ls downloaded-artifacts/*.tar.gz 1> /dev/null 2>&1; then
-            echo "artifactsExist=true" >> $GITHUB_ENV
-          else
-            echo "artifactsExist=false" >> $GITHUB_ENV
-          fi
-
-      - name: Extract artifacts
-        if: env.artifactsExist == 'true'
         run: |
           mkdir -p dist/apps
-          for artifact in downloaded-artifacts/*.tar.gz; do
-            projectName=$(basename "$artifact" .tar.gz)
-            echo "Extracting artifact for project: $projectName"
-            tar -xzf "$artifact" -C "dist/apps/$projectName"
+          for artifact in downloaded-apps/*.tar.gz; do
+            appName=$(basename "$artifact" .tar.gz)
+            echo "Extracting app artifact for: $appName"
+            tar -xzf "$artifact" -C "dist/apps/$appName"
+          done
+
+      - name: Extract library artifacts
+        if: needs.build.outputs.buildSucceeded == 'true'
+        run: |
+          mkdir -p dist/libs
+          for artifact in downloaded-libs/*.tar.gz; do
+            libName=$(basename "$artifact" .tar.gz)
+            echo "Extracting library artifact for: $libName"
+            tar -xzf "$artifact" -C "dist/libs/$libName"
           done
 
       - name: Release libraries
-        if: env.artifactsExist == 'true'
+        if: needs.build.outputs.buildSucceeded == 'true'
         run: npm run release-libs
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
@@ -292,45 +312,39 @@ jobs:
         with:
           node-version: '20'
 
-      - name: Download all artifacts
+      - name: Download all app artifacts
         if: needs.build.outputs.buildSucceeded == 'true'
         uses: actions/download-artifact@v4
         with:
-          name: all-project-artifacts
-          path: downloaded-artifacts
+          name: all-app-artifacts
+          path: downloaded-apps
 
-      - name: Debug downloaded artifacts
+      - name: Download all library artifacts
         if: needs.build.outputs.buildSucceeded == 'true'
-        run: |
-          echo "Contents of downloaded-artifacts:"
-          ls -R downloaded-artifacts || echo "No files found in downloaded-artifacts."
+        uses: actions/download-artifact@v4
+        with:
+          name: all-library-artifacts
+          path: downloaded-libs
 
-      - name: Check if artifacts exist
+      - name: Extract app artifacts
         if: needs.build.outputs.buildSucceeded == 'true'
-        id: check-artifacts
-        run: |
-          if ls downloaded-artifacts/*.tar.gz 1> /dev/null 2>&1; then
-            echo "artifactsExist=true" >> $GITHUB_ENV
-          else
-            echo "artifactsExist=false" >> $GITHUB_ENV
-          fi
-
-      - name: Extract artifacts
-        if: env.artifactsExist == 'true'
         run: |
           mkdir -p dist/apps
-          for artifact in downloaded-artifacts/*.tar.gz; do
-            projectName=$(basename "$artifact" .tar.gz)
-            echo "Extracting artifact for project: $projectName"
-            tar -xzf "$artifact" -C "dist/apps/$projectName"
+          for artifact in downloaded-apps/*.tar.gz; do
+            appName=$(basename "$artifact" .tar.gz)
+            echo "Extracting app artifact for: $appName"
+            tar -xzf "$artifact" -C "dist/apps/$appName"
           done
 
-      - name: Upload extracted artifacts for manual download
-        if: env.artifactsExist == 'true'
-        uses: actions/upload-artifact@v4
-        with:
-          name: extracted-artifacts
-          path: dist/apps/
+      - name: Extract library artifacts
+        if: needs.build.outputs.buildSucceeded == 'true'
+        run: |
+          mkdir -p dist/libs
+          for artifact in downloaded-libs/*.tar.gz; do
+            libName=$(basename "$artifact" .tar.gz)
+            echo "Extracting library artifact for: $libName"
+            tar -xzf "$artifact" -C "dist/libs/$libName"
+          done
 
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
@@ -339,20 +353,35 @@ jobs:
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: us-east-1
 
-      - name: Deploy all projects to AWS S3
-        if: env.artifactsExist == 'true'
+      - name: Deploy all apps to AWS S3
+        if: needs.build.outputs.buildSucceeded == 'true'
         run: |
-          for projectPath in dist/apps/*; do
-            projectName=$(basename "$projectPath")
-            echo "Deploying $projectName to S3..."
-            aws s3 sync "$projectPath/" "s3://your-bucket-name/$projectName/"
+          for appPath in dist/apps/*; do
+            appName=$(basename "$appPath")
+            echo "Deploying app: $appName to S3..."
+            aws s3 sync "$appPath/" "s3://your-bucket-name/apps/$appName/"
+          done
+
+      - name: Deploy all libraries to AWS S3
+        if: needs.build.outputs.buildSucceeded == 'true'
+        run: |
+          for libPath in dist/libs/*; do
+            libName=$(basename "$libPath")
+            echo "Deploying library: $libName to S3..."
+            aws s3 sync "$libPath/" "s3://your-bucket-name/libs/$libName/"
           done
 
       - name: Verify deployment
-        if: env.artifactsExist == 'true'
+        if: needs.build.outputs.buildSucceeded == 'true'
         run: |
-          for projectPath in dist/apps/*; do
-            projectName=$(basename "$projectPath")
-            echo "Verifying deployment for $projectName..."
-            aws s3 ls "s3://your-bucket-name/$projectName/" --recursive
+          echo "Verifying app deployments..."
+          for appPath in dist/apps/*; do
+            appName=$(basename "$appPath")
+            aws s3 ls "s3://your-bucket-name/apps/$appName/" --recursive
+          done
+
+          echo "Verifying library deployments..."
+          for libPath in dist/libs/*; do
+            libName=$(basename "$libPath")
+            aws s3 ls "s3://your-bucket-name/libs/$libName/" --recursive
           done
